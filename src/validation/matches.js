@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-export const listMatchesQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).optional(),
-});
-
-export const MATCH_STATUS = Object.freeze({
+export const MATCH_STATUS = {
   SCHEDULED: "scheduled",
   LIVE: "live",
   FINISHED: "finished",
+};
+
+export const listMatchesQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).optional(),
 });
 
 export const matchIdParamSchema = z.object({
@@ -19,26 +19,17 @@ export const createMatchSchema = z
     sport: z.string().min(1),
     homeTeam: z.string().min(1),
     awayTeam: z.string().min(1),
-    startTime: z.string(),
-    endTime: z.string(),
+    startTime: z.iso.datetime(),
+    endTime: z.iso.datetime(),
     homeScore: z.coerce.number().int().nonnegative().optional(),
     awayScore: z.coerce.number().int().nonnegative().optional(),
   })
-  .refine(
-    (data) =>
-      !isNaN(Date.parse(data.startTime)) && !isNaN(Date.parse(data.endTime)),
-    {
-      message: "startTime and endTime must be valid ISO date strings",
-      path: ["startTime", "endTime"],
-    }
-  )
   .superRefine((data, ctx) => {
-    const startDate = new Date(data.startTime);
-    const endDate = new Date(data.endTime);
-
-    if (startDate >= endDate) {
+    const start = new Date(data.startTime);
+    const end = new Date(data.endTime);
+    if (end <= start) {
       ctx.addIssue({
-        code: "custom",
+        code: z.ZodIssueCode.custom,
         message: "endTime must be chronologically after startTime",
         path: ["endTime"],
       });
