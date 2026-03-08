@@ -4,11 +4,11 @@ export const listMatchesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional(),
 });
 
-export const MATCH_STATUS = {
+export const MATCH_STATUS = Object.freeze({
   SCHEDULED: "scheduled",
   LIVE: "live",
   FINISHED: "finished",
-};
+});
 
 export const matchIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -38,7 +38,7 @@ export const createMatchSchema = z
 
     if (startDate >= endDate) {
       ctx.addIssue({
-        code: "invalid_type",
+        code: "custom",
         message: "endTime must be chronologically after startTime",
         path: ["endTime"],
       });

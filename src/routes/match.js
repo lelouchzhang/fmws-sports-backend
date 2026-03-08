@@ -21,7 +21,7 @@ matchRouter.get("/", async (req, res) => {
     });
   }
 
-  const limit = Math.min(Math.max(parsed.data.limit ?? 50, MAX_LIMIT_QUERY));
+  const limit = Math.min(parsed.data.limit ?? 50, MAX_LIMIT_QUERY);
   try {
     const data = await db
       .select()
@@ -32,7 +32,8 @@ matchRouter.get("/", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "Internal Server Error When Listing Matches",
-      details: JSON.stringify(error),
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 });
@@ -47,6 +48,14 @@ matchRouter.post("/", async (req, res) => {
     });
   }
   try {
+    const status = getMatchStatus(parsed.data.startTime, parsed.data.endTime);
+    if (!status) {
+      return res.status(400).json({
+        error: "Invalid date values",
+        details: "Could not determine match status from provided dates",
+      });
+    }
+
     const [event] = await db
       .insert(matches)
       .values({
@@ -55,14 +64,15 @@ matchRouter.post("/", async (req, res) => {
         endTime: new Date(parsed.data.endTime),
         homeScore: parsed.data.homeScore ?? 0,
         awayScore: parsed.data.awayScore ?? 0,
-        status: getMatchStatus(parsed.data.startTime, parsed.data.endTime),
+        status,
       })
       .returning();
     res.status(201).json({ data: event });
   } catch (error) {
     res.status(500).json({
       error: "Internal Server Error When Creating Match",
-      details: JSON.stringify(error),
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 });
