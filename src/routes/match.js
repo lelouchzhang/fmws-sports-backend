@@ -56,7 +56,7 @@ matchRouter.post("/", async (req, res) => {
       });
     }
 
-    const [event] = await db
+    const [match] = await db
       .insert(matches)
       .values({
         ...parsed.data,
@@ -67,7 +67,13 @@ matchRouter.post("/", async (req, res) => {
         status,
       })
       .returning();
-    res.status(201).json({ data: event });
+    res.status(201).json({ data: match });
+
+    try {
+      res.app.locals.broadcastMessageCreated?.(match);
+    } catch (broadcastError) {
+      console.error("Failed to broadcast match_created", broadcastError);
+    }
   } catch (error) {
     res.status(500).json({
       error: "Internal Server Error When Creating Match",
