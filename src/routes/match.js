@@ -71,6 +71,13 @@ matchRouter.post("/", async (req, res) => {
       res.app.locals.broadcastMessageCreated(match);
     }
     res.status(201).json({ data: match });
+
+    //
+    try {
+      res.app.locals.broadcastMessageCreated?.(match);
+    } catch (broadcastError) {
+      console.error("Failed to broadcast match_created", broadcastError);
+    }
   } catch (error) {
     res.status(500).json({
       error: "Internal Server Error When Creating Match",
