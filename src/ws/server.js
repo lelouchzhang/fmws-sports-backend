@@ -22,20 +22,35 @@ export function attachWebSocketServer(server) {
   });
 
   wss.on("connection", (socket) => {
+    // 1.给socket打上标记isAlive
     socket.isAlive = true;
+    // 监听pong事件
     socket.on("pong", () => {
       socket.isAlive = true;
     });
+    // 2. 发送欢迎消息
     sendMessage(socket, { type: "welcome" });
-
     socket.on("error", console.error);
   });
+
   const interval = setInterval(() => {
-    wss.clients.forEach((socket) => {
-      if (socket.isAlive === false) return socket.terminate();
-      socket.isAlive = false;
-      socket.ping();
-    });
+    for (const client of wss.clients) {
+      try {
+        // isAlive为false，说明上次心跳超时，关闭该连接
+        if (client.isAlive === false) {
+          client.terminate();
+          continue;
+        }
+        // 否则，重置状态ping客户端
+        client.isAlive = false;
+        client.ping();
+        // 客户端收到ping后自动回复pong(WS协议原生支持)
+        // 服务端收到pong后，isAlive置为true
+      } catch (error) {
+        console.error("Heartbeat ping failed", error);
+        client.terminate();
+      }
+    }
   }, 30000);
 
   wss.on("close", () => clearInterval(interval));
