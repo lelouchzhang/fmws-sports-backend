@@ -24,6 +24,7 @@ export function attachWebSocketServer(server) {
 
   wss.on("connection", async (socket, req) => {
     // 0.Arcjet
+    // Todo: 如果出现性能问题，可考虑迁移验证逻辑到更早的"upgrade"节省ws连接建立的开销。
     if (WebSocketArcjet) {
       try {
         const decision = await WebSocketArcjet.protect(req);
