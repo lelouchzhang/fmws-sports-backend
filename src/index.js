@@ -3,6 +3,7 @@ import express from "express";
 import http from "http";
 import { matchRouter } from "./routes/match.js";
 import { attachWebSocketServer } from "./ws/server.js";
+import { securityMiddleware } from "./arcjet.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8000);
@@ -16,6 +17,8 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
+// arcjet middleware
+app.use(securityMiddleware());
 
 app.use("/matches", matchRouter);
 // 创建WS server

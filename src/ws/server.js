@@ -1,4 +1,5 @@
 import { WebSocket, WebSocketServer } from "ws";
+import { WebSocketArcjet } from "../arcjet.js";
 
 // FINAL CHECK BEFORE SEND MESSAGE
 function sendMessage(socket, payload) {
@@ -21,7 +22,25 @@ export function attachWebSocketServer(server) {
     maxPayload: 1024 * 1024,
   });
 
-  wss.on("connection", (socket) => {
+  wss.on("connection", async (socket, req) => {
+    // 0.Arcjet
+    if (WebSocketArcjet) {
+      try {
+        const decision = await WebSocketArcjet.protect(req);
+        if (decision.isDenied()) {
+          const code = decision.reason.isRateLimit() ? 1013 : 1008;
+          const reason = decision.reason.isRateLimit()
+            ? "Rate Limit Exceeded"
+            : "Access Denied";
+          socket.close(code, reason);
+          return;
+        }
+      } catch (error) {
+        console.error("WS connection error", error);
+        socket.close(1011, "Server Security Error");
+        return;
+      }
+    }
     // 1.给socket打上标记isAlive
     socket.isAlive = true;
     // 监听pong事件
