@@ -24,9 +24,11 @@ app.use(securityMiddleware());
 app.use("/matches", matchRouter);
 app.use("/matches/:id/commentary", commentaryRouter);
 // 创建WS server
-const { broadcastMessageCreated } = attachWebSocketServer(server);
-// 全局注册broadcastMessageCreated函数
+const { broadcastMessageCreated, broadcastCommentary } =
+  attachWebSocketServer(server);
+// 全局注册
 app.locals.broadcastMessageCreated = broadcastMessageCreated;
+app.locals.broadcastCommentary = broadcastCommentary;
 
 server.listen(PORT, HOST, () => {
   const baseUrl =
