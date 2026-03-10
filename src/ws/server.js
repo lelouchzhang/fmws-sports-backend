@@ -7,7 +7,7 @@ function sendMessage(socket, payload) {
   socket.send(JSON.stringify(payload));
 }
 // wss.clients = [socket1, socket2, ...]
-function broadcastMessage(wss, payload) {
+function broadcastMessageToAll(wss, payload) {
   const message = JSON.stringify(payload);
   for (const client of wss.clients) {
     if (client.readyState !== WebSocket.OPEN) continue;
@@ -15,6 +15,72 @@ function broadcastMessage(wss, payload) {
   }
 }
 
+// utils for PUB/SUB pattern
+const matchSubscribers = new Map();
+
+function subscribe(matchId, socket) {
+  // 订阅时,为每一个socket维护一个subscriptions的Set()
+  if (!socket.subscriptions) {
+    socket.subscriptions = new Set();
+  }
+  if (!matchSubscribers.has(matchId)) {
+    // matchSubscribers中存储的是{matchId: Set<socket>} 这样的数据结构
+    matchSubscribers.set(matchId, new Set());
+  }
+  // 向所有match中添加用户的socket,使用Set去重
+  matchSubscribers.get(matchId).add(socket);
+}
+
+function unsubscribe(matchId, socket) {
+  const subscribers = matchSubscribers.get(matchId);
+  if (!subscribers) return;
+  subscribers.delete(socket);
+
+  if (subscribers.size === 0) {
+    matchSubscribers.delete(matchId);
+  }
+}
+
+// 在用户退出的场合, 清理所有用户的订阅
+function cleanUpSubscriptions(socket) {
+  for (const matchId of Array.from(socket.subscriptions)) {
+    unsubscribe(matchId, socket);
+  }
+}
+
+function broadcastByMatchId(matchId, payload) {
+  const subscribers = matchSubscribers.get(matchId);
+  if (!subscribers || subscribers.size === 0) return;
+
+  const message = JSON.stringify(payload);
+
+  for (const client of subscribers) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
+}
+
+function handleMessage(socket, data) {
+  let message;
+  try {
+    message = JSON.parse(JSON.stringify(data));
+  } catch (error) {
+    sendMessage(socket, { type: "error", message: "Invalid JSON" });
+  }
+  if (message?.type === "subscribe" && Number.isInteger(message.matchId)) {
+    subscribe(message.matchId, socket);
+    socket.subscriptions.add(message.matchId);
+    sendMessage(socket, { type: "subscribed", matchId: message.matchId });
+    return;
+  }
+  if (message?.type === "unsubscribe" && Number.isInteger(message.matchId)) {
+    unsubscribe(message.matchId, socket);
+    socket.subscriptions?.delete(message.matchId);
+    sendMessage(socket, { type: "unsubscribed", matchId: message.matchId });
+    return;
+  }
+}
 export function attachWebSocketServer(server) {
   const wss = new WebSocketServer({
     server,
@@ -24,6 +90,7 @@ export function attachWebSocketServer(server) {
 
   wss.on("connection", async (socket, req) => {
     // 0.Arcjet
+    // Todo: 如果出现性能问题，可考虑迁移验证逻辑到更早的"upgrade"节省ws连接建立的开销。
     if (WebSocketArcjet) {
       try {
         const decision = await WebSocketArcjet.protect(req);
@@ -49,7 +116,15 @@ export function attachWebSocketServer(server) {
     });
     // 2. 发送欢迎消息
     sendMessage(socket, { type: "welcome" });
-    socket.on("error", console.error);
+
+    socket.on("message", (data) => handleMessage(socket, data));
+
+    socket.on("error", () => {
+      console.error("WS error", error);
+      socket.terminate();
+    });
+
+    socket.on("close", () => cleanUpSubscriptions(socket));
   });
 
   const interval = setInterval(() => {
@@ -75,10 +150,17 @@ export function attachWebSocketServer(server) {
   wss.on("close", () => clearInterval(interval));
 
   function broadcastMessageCreated(match) {
-    broadcastMessage(wss, {
+    broadcastMessageToAll(wss, {
       type: "match_created",
       data: match,
     });
   }
-  return { broadcastMessageCreated };
+
+  function broadcastCommentary(matchId, comment) {
+    broadcastByMatchId(matchId, {
+      type: "commentary",
+      data: comment,
+    });
+  }
+  return { broadcastMessageCreated, broadcastCommentary };
 }
