@@ -64,7 +64,7 @@ function broadcastByMatchId(matchId, payload) {
 function handleMessage(socket, data) {
   let message;
   try {
-    message = JSON.parse(JSON.stringify(data));
+    message = JSON.parse(data.toString());
   } catch (error) {
     sendMessage(socket, { type: "error", message: "Invalid JSON" });
   }
